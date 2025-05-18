@@ -1,9 +1,11 @@
-#include <windows.h>
+﻿#include <windows.h>
 #include <iostream>
 #include <string>
 #include <vector>
 #include <algorithm>
 #include <cctype>
+#include <memory>
+#include <array>
 #include "SHA256.h"
 
 using namespace std;
@@ -19,25 +21,11 @@ string sha256(const string& text) {
     return SHA256::toString(sha.digest());
 }
 
-void copy_to_clipboard(const string& text) {
-    if (!OpenClipboard(nullptr)) return;
-    EmptyClipboard();
-    HGLOBAL hGlob = GlobalAlloc(GMEM_MOVEABLE, text.size() + 1);
-    memcpy(GlobalLock(hGlob), text.c_str(), text.size() + 1);
-    GlobalUnlock(hGlob);
-    SetClipboardData(CF_TEXT, hGlob);
-    CloseClipboard();
-}
-
-int main() {
+string getHWID_Windows() {
     SECURITY_ATTRIBUTES sa{ sizeof(SECURITY_ATTRIBUTES), nullptr, TRUE };
-    HANDLE hRead, hWrite;
-    if (!CreatePipe(&hRead, &hWrite, &sa, 0)) {
-        printMessage(cerr,
-            "Pipe creation failed.",
-            "Nie udalo sie utworzyc potoku.");
-        return 1;
-    }
+    HANDLE hRead = nullptr, hWrite = nullptr;
+    if (!CreatePipe(&hRead, &hWrite, &sa, 0))
+        return "";
 
     STARTUPINFOA si{ sizeof(STARTUPINFOA) };
     si.dwFlags = STARTF_USESTDHANDLES;
@@ -47,28 +35,28 @@ int main() {
     PROCESS_INFORMATION pi;
     BOOL ok = CreateProcessA(
         nullptr,
-        const_cast<LPSTR>("wmic csproduct get uuid"),
+        const_cast<LPSTR>(
+            "powershell.exe -NoProfile -Command "
+            "\"Get-WmiObject -Class Win32_ComputerSystemProduct | "
+            "Select-Object -ExpandProperty UUID\""
+            ),
         nullptr, nullptr, TRUE,
         CREATE_NO_WINDOW,
         nullptr, nullptr,
         &si, &pi
     );
-
     CloseHandle(hWrite);
     if (!ok) {
-        printMessage(cerr,
-            "Failed to launch WMIC.",
-            "Nie udalo si� uruchomi� WMIC.");
-        return 1;
+        CloseHandle(hRead);
+        return "";
     }
 
     string raw;
-    CHAR buffer[128];
+    array<char, 128> buf;
     DWORD bytesRead;
-    while (ReadFile(hRead, buffer, sizeof(buffer) - 1, &bytesRead, nullptr)
-        && bytesRead) {
-        buffer[bytesRead] = '\0';
-        raw += buffer;
+    while (ReadFile(hRead, buf.data(), buf.size() - 1, &bytesRead, nullptr) && bytesRead) {
+        buf[bytesRead] = '\0';
+        raw += buf.data();
     }
 
     CloseHandle(hRead);
@@ -76,19 +64,18 @@ int main() {
     CloseHandle(pi.hProcess);
     CloseHandle(pi.hThread);
 
-    if (raw.find("not recognized") != string::npos) {
-        printMessage(cout,
-            "WMI not found. Install WMIC feature-on-demand:\n"
-            "https://techcommunity.microsoft.com/blog/windows-itpro-blog/"
-            "how-to-install-wmic-feature-on-demand-on-windows-11/4189530",
-            "Nie znaleziono WMI. Zainstaluj funkcje WMIC:\n"
-            "https://techcommunity.microsoft.com/blog/windows-itpro-blog/"
-            "how-to-install-wmic-feature-on-demand-on-windows-11/4189530");
-        system("pause");
+    raw.erase(remove_if(raw.begin(), raw.end(), ::isspace), raw.end());
+    return "UUID" + raw;
+}
+
+int main() {
+    string raw = getHWID_Windows();
+    if (raw.empty()) {
+        printMessage(cerr,
+            "Failed to retrieve HWID from the system.",
+            "Nie udało się pobrać HWID z systemu.");
         return 1;
     }
-
-    raw.erase(remove_if(raw.begin(), raw.end(), ::isspace), raw.end());
 
     vector<string> unsupportedHashes = {
         "445e8dda7991f57432a755001e06fa457cc5cc64be045d995df75b7513726e2f"
@@ -100,11 +87,20 @@ int main() {
         != unsupportedHashes.end()) {
         printMessage(cout,
             "Your HWID is not supported. Please contact our support team on Discord: discord.gg/grimclient",
-            "Twoj HWID nie jest obslugiwany. Skontaktuj sie z naszym wsparciem na Discordzie: discord.gg/grimclient");
+            "Twój HWID nie jest obsługiwany. Skontaktuj się z naszym wsparciem na Discordzie: discord.gg/grimclient");
     }
     else {
         cout << hashed << endl;
-        copy_to_clipboard(hashed);
+        if (OpenClipboard(nullptr)) {
+            EmptyClipboard();
+            HGLOBAL hGlob = GlobalAlloc(GMEM_MOVEABLE, hashed.size() + 1);
+            if (hGlob) {
+                memcpy(GlobalLock(hGlob), hashed.c_str(), hashed.size() + 1);
+                GlobalUnlock(hGlob);
+                SetClipboardData(CF_TEXT, hGlob);
+            }
+            CloseClipboard();
+        }
     }
 
     system("pause");
