@@ -70,10 +70,11 @@ string getHWID_Windows() {
 
 int main() {
     string raw = getHWID_Windows();
-    if (raw.empty()) {
-        printMessage(cerr,
-            "Failed to retrieve HWID from the system.",
-            "Nie udało się pobrać HWID z systemu.");
+    if (raw.size() != 40) {
+        printMessage(cout,
+            "Your HWID is not supported. Please contact our support team on Discord: discord.gg/grimclient",
+            "Twój HWID nie jest obsługiwany. Skontaktuj się z naszym wsparciem na Discordzie: discord.gg/grimclient"
+        );
         return 1;
     }
 
@@ -87,7 +88,8 @@ int main() {
         != unsupportedHashes.end()) {
         printMessage(cout,
             "Your HWID is not supported. Please contact our support team on Discord: discord.gg/grimclient",
-            "Twój HWID nie jest obsługiwany. Skontaktuj się z naszym wsparciem na Discordzie: discord.gg/grimclient");
+            "Twój HWID nie jest obsługiwany. Skontaktuj się z naszym wsparciem na Discordzie: discord.gg/grimclient"
+        );
     }
     else {
         cout << hashed << endl;
