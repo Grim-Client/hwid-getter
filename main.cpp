@@ -79,7 +79,9 @@ int main() {
     }
 
     vector<string> unsupportedHashes = {
-        "445e8dda7991f57432a755001e06fa457cc5cc64be045d995df75b7513726e2f"
+        "445e8dda7991f57432a755001e06fa457cc5cc64be045d995df75b7513726e2f",
+        "171bec515b856d7aa2445e4080aed49672831943415dbd076f562bab4a6ef78a",
+        "37ff85223c40b01cfa05f43ff67f57bbb03d986aaaf0f340f15acbbcb9aabf1d"
     };
 
     string hashed = sha256(raw);
